@@ -1,6 +1,5 @@
 import express from "express";
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import helmet from "helmet";
 import { providers } from "./providers/index.js";
 import { createProviderRouter } from "./routes/provider-router.js";
@@ -36,14 +35,18 @@ app.get("/api/catalog/search", async (req, res) => {
   if (!q || q.length > 160) return res.status(400).json({ error: "invalid_query", message: "Provide q (1–160 characters)." });
   try {
     const upstream = await fetch("https://graphql.anilist.co", {
-      method: "POST", headers: { "content-type": "application/json", "accept": "application/json" },
-      body: JSON.stringify({ query: "query ($search: String) { Page(page: 1, perPage: 20) { media(search: $search, type: ANIME, sort: SEARCH_MATCH) { id title { romaji english native } description(asHtml: false) episodes status format seasonYear coverImage { large } siteUrl } } }", variables: { search: q } }),
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        query: "query ($search: String) { Page(page: 1, perPage: 20) { media(search: $search, type: ANIME, sort: SEARCH_MATCH) { id title { romaji english native } description(asHtml: false) episodes status format seasonYear coverImage { large } siteUrl } } }",
+        variables: { search: q }
+      }),
       signal: AbortSignal.timeout(10000)
     });
     if (!upstream.ok) return res.status(502).json({ error: "catalog_upstream_error", message: "Anime metadata service is temporarily unavailable." });
     const payload = await upstream.json();
     return res.json({ source: "AniList metadata (not video streams)", results: payload?.data?.Page?.media ?? [] });
-  } catch (error) {
+  } catch {
     return res.status(502).json({ error: "catalog_unavailable", message: "Could not reach anime metadata service. Try again shortly." });
   }
 });
@@ -58,9 +61,11 @@ app.get("/api", (_req, res) => {
       "GET /health",
       "GET /api/providers",
       "GET /api/catalog/search?q=title",
-      "GET /api/:provider/search?q=title"
+      "GET /api/:provider/search?q=title",
+      "GET /api/:provider/episodes?animeId=id",
+      "GET /api/:provider/stream?episodeId=id"
     ],
-    note: "Catalog metadata search is available at /api/catalog/search?q=title. Provider-specific stream search requires a verified provider adapter; metadata is not a video stream."
+    note: "Metadata, episode records, and playable media are separate operations. Episode and stream routes require configured provider endpoints."
   });
 });
 
