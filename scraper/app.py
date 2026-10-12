@@ -5,7 +5,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -137,7 +137,7 @@ def search(platform: str = Query(...), q: str = Query(..., min_length=1, max_len
         results = [anime_item(m) for m in media]
     else:
         cfg = PROVIDERS[platform]
-        path = cfg["search_path"].replace("{query}", httpx.QueryParams({"q":q})["q"])
+        path = cfg["search_path"].replace("{query}", quote(q, safe=""))
         base = cfg["base"].rstrip("/")
         target = urljoin(base + "/", path.lstrip("/"))
         # Search paths are fixed provider configuration; query parameters are URL-encoded.
@@ -186,8 +186,6 @@ def movies() -> dict[str, Any]: return metadata_list("movies")
 def schedule() -> dict[str, Any]:
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     query = "query ($date: Int) { Page(perPage:50) { airingSchedules(airingAt_greater:$date, sort:TIME) { airingAt episode media { id title { english romaji } } } } }"
-    schedules = anilist(query, {"date":int(dt.datetime.now(dt.timezone.utc).timestamp())})
-    # AniList schedule query returns airingSchedules, not Page.media; use a dedicated request below.
     try:
         r = httpx.post("https://graphql.anilist.co", json={"query":"query ($from:Int) { Page(perPage:30) { airingSchedules(airingAt_greater:$from, sort:TIME) { airingAt episode media { id title { english romaji } } } } }","variables":{"from":int(dt.datetime.now(dt.timezone.utc).timestamp())}}, timeout=15)
         r.raise_for_status()
