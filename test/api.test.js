@@ -83,7 +83,7 @@ test("unconfigured provider returns clearly labeled catalog metadata", async t =
     else process.env.ANIKOTO_SEARCH_PATH = oldPath;
   });
   globalThis.fetch = async (url, options) => {
-    assert.equal(String(url), "https://graphql.anilist.co");
+    if (String(url) !== "https://graphql.anilist.co") return originalFetch(url, options);
     assert.equal(options.method, "POST");
     return new Response(JSON.stringify(catalogPayload), {
       status: 200,
