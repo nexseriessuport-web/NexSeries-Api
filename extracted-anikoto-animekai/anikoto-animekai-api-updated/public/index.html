@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nex Anime Catalog</title>
+<style>
+:root{color-scheme:dark;--bg:#090909;--panel:#151515;--line:#2a2a2a;--muted:#aaa;--fg:#f5f5f5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+header{padding:22px 4vw;border-bottom:1px solid var(--line)}h1{margin:0;font-size:22px;letter-spacing:.06em}main{max-width:1100px;margin:auto;padding:24px 16px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}input,button,select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit}input{flex:1;min-width:190px}button{cursor:pointer}button:hover{border-color:#888}.panels{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{border:1px solid var(--line);background:var(--panel);padding:16px;border-radius:14px;min-width:0}.muted{color:var(--muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;background:#080808;padding:12px;border-radius:8px}.routes{font-size:13px}.player-frame{width:100%;aspect-ratio:16/9;border:1px solid var(--line);border-radius:10px;background:#000}.player-tools{display:flex;gap:8px;flex-wrap:wrap}.player-tools input{flex:1;min-width:180px}@media(max-width:720px){.panels{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>NEX ANIME</h1><span class="muted">Anikoto + AnimeKai API wrapper</span></header>
+<main>
+<div class="toolbar"><button id="health">Check providers</button><button id="routes">Show routes</button></div>
+<div class="panels">
+<section class="panel"><h2>Anikoto</h2><div class="toolbar"><button id="recent">Recent anime</button><input id="seriesId" placeholder="Series ID"><button id="series">Series</button></div><p class="muted">Uses the configured upstream catalog API.</p><pre id="anikoto">Choose an action.</pre></section>
+<section class="panel"><h2>AnimeKai</h2><div class="toolbar"><button id="home">Home</button><input id="keyword" placeholder="Search title"><button id="search">Search</button></div><div class="toolbar"><input id="slug" placeholder="Anime slug"><button id="details">Details</button></div><div class="toolbar"><input id="animeId" placeholder="Anime ID"><button id="episodes">Episodes</button></div><pre id="animekai">Set ANIMEKAI_API_BASE to a working API instance.</pre></section>
+</div>
+<section class="panel" style="margin-top:16px">
+<h2>Video player</h2>
+<p class="muted">Paste a provider's HTTPS embed URL. The exact hostname must be listed in ALLOWED_EMBED_HOSTS on the server.</p>
+<div class="player-tools"><input id="embedUrl" type="url" placeholder="https://trusted-provider.example/embed/…" autocomplete="url"><button id="play">Load video</button><button id="stop">Stop</button></div>
+<p id="playerStatus" class="muted">Player idle.</p>
+<iframe id="player" class="player-frame" title="Anime video player" hidden referrerpolicy="no-referrer" allow="fullscreen; picture-in-picture; encrypted-media" allowfullscreen sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+</section>
+<p id="status" class="muted"></p>
+<script>
+const $=id=>document.getElementById(id);
+async function call(url,target){$(target).textContent="Loading…";try{const r=await fetch(url);const d=await r.json();$(target).textContent=JSON.stringify(d,null,2);$("status").textContent=r.ok?"Request completed.":"Request returned HTTP "+r.status+".";return d;}catch(e){$(target).textContent=e.message;$("status").textContent="Request failed.";}}
+$("health").onclick=()=>call("/api/health","anikoto");
+$("routes").onclick=()=>call("/api/routes","animekai");
+$("recent").onclick=()=>call("/api/anikoto/recent","anikoto");
+$("series").onclick=()=>call("/api/anikoto/series/"+encodeURIComponent($("seriesId").value.trim()),"anikoto");
+$("home").onclick=()=>call("/api/animekai/home","animekai");
+$("search").onclick=()=>call("/api/animekai/search?keyword="+encodeURIComponent($("keyword").value.trim()),"animekai");
+$("details").onclick=()=>call("/api/animekai/anime/"+encodeURIComponent($("slug").value.trim()),"animekai");
+$("episodes").onclick=()=>call("/api/animekai/episodes/"+encodeURIComponent($("animeId").value.trim()),"animekai");
+
+const player=$("player");
+$("play").onclick=async()=>{
+  const raw=$("embedUrl").value.trim();
+  $("playerStatus").textContent="Validating trusted embed…";
+  player.hidden=true;
+  player.removeAttribute("src");
+  try {
+    const response=await fetch("/api/player/embed?url="+encodeURIComponent(raw),{headers:{Accept:"application/json"}});
+    const result=await response.json();
+    if(!response.ok) throw new Error(result.message||result.error||"Embed rejected.");
+    // Sandboxed iframe prevents popups and top-level navigation. Cross-origin ads
+    // inside the provider remain under that provider's control.
+    player.src=result.embedUrl;
+    player.hidden=false;
+    $("playerStatus").textContent="Player loaded. If playback fails, the provider may require its own supported embed flow.";
+  } catch(error) {
+    $("playerStatus").textContent=error.message;
+  }
+};
+$("stop").onclick=()=>{
+  player.removeAttribute("src");
+  player.hidden=true;
+  $("playerStatus").textContent="Playback stopped.";
+};
+
+// Block new-window popups initiated by the wrapper page. The sandbox also blocks
+// popup creation and top-level navigation from the embedded provider.
+window.open=()=>null;
+document.addEventListener("click",event=>{
+  const link=event.target.closest("a[target='_blank']");
+  if(link){event.preventDefault();$("status").textContent="Opening new tabs is disabled in this app.";}
+},true);
+</script>
+</main>
+</body>
+</html>
