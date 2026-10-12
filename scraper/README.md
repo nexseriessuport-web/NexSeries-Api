@@ -32,3 +32,5 @@ Open `/` for the dashboard, `/docs` for interactive Swagger docs, and `/api/heal
 `animekai`, `anikoto`, `hianime`, and `anivault`. HTML layouts and provider availability can change. AniList is a metadata source, not a video host, and cannot provide playable episode URLs. The service returns empty results or a clear error when links are not found; it does not invent episodes or mirror servers.
 
 Provider URL allowlisting is enabled to reduce server-side request forgery risk. Use only sources you are authorized to access. This service does not evade access controls, DRM, or anti-bot protections.
+
+Deployment root is the repository-relative path `scraper`.
