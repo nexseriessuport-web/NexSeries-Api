@@ -13,7 +13,7 @@ app.use(express.json({ limit: "100kb" }));
 
 app.get("/", async (_req, res, next) => {
   try {
-    const html = await readFile(new URL("./public/index.html", import.meta.url), "utf8");
+    const html = await readFile(new URL("./public/watch.html", import.meta.url), "utf8");
     res.type("html").send(html);
   } catch (error) { next(error); }
 });
