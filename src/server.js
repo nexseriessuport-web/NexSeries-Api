@@ -1,20 +1,21 @@
 import express from "express";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import helmet from "helmet";
 import { providers } from "./providers/index.js";
 import { createProviderRouter } from "./routes/provider-router.js";
 
 const app = express();
 app.disable("x-powered-by");
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "100kb" }));
 
-app.get("/", (_req, res) => {
-  res.json({
-    name: "NexSeries API Workspace",
-    status: "ok",
-    docs: "/api",
-    health: "/health"
-  });
+app.get("/", async (_req, res, next) => {
+  try {
+    const html = await readFile(new URL("./public/index.html", import.meta.url), "utf8");
+    res.type("html").send(html);
+  } catch (error) { next(error); }
 });
 
 app.get("/health", (_req, res) => {
