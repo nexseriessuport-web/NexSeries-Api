@@ -1,18 +1,34 @@
-# Nex Series API Scraper (FastAPI)
+# Nex Series API Scraper
 
-Standalone Python scraper service for the NexSeries-Api repository.
+Fresh FastAPI service with a built-in mobile-friendly dashboard, Swagger API explorer, provider search, episode parsing, metadata lists, and a SQLite watchlist.
 
 ## Run locally
 ```bash
 python -m pip install -r requirements.txt
-uvicorn nex_series_api:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
+Open `/` for the dashboard, `/docs` for interactive Swagger docs, and `/api/health` for health status.
 
-On Railway, set the service root directory to `/scraper` and start command to:
-```bash
-uvicorn nex_series_api:app --host 0.0.0.0 --port $PORT
-```
+## Railway
+- Root directory: `/scraper`
+- Start command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+- Healthcheck path: `/api/health`
+- For persistent watchlist storage, attach a Railway volume mounted at `/data`. The app will use `/data/nex_series.db` when `/data` exists; otherwise it uses `nex_series.db` in the service directory.
 
-Routes: `/`, `/api/health`, `/api/search`, `/api/upcoming`, `/api/top-airing`, `/api/most-popular`, `/api/movies`, `/api/schedule`, `/api/genres`, `/api/genre/{name}`, `/api/anime/details`, `/api/episodes`, `/api/servers`, `/api/stream`, and `/api/watchlist`.
+## Routes
+- `GET /` dashboard
+- `GET /docs` interactive API explorer
+- `GET /api/health`, `GET /api/providers`
+- `GET /api/search?platform=animekai&q=Naruto`
+- `GET /api/upcoming`, `/api/top-airing`, `/api/most-popular`, `/api/movies`
+- `GET /api/schedule`, `/api/genres`, `/api/genre/{name}`
+- `GET /api/anime/details?platform=...&url=...`
+- `GET /api/episodes?platform=...&url=...`
+- `GET /api/servers?platform=...&url=...`
+- `GET /api/stream?platform=...&url=...`
+- `GET /api/watchlist`, `POST /api/watchlist`, `DELETE /api/watchlist/{item_id}`
 
-Provider pages can change their HTML at any time, so selectors and stream availability need real-world verification. AniList endpoints return metadata, not episodes or media streams. This service uses ordinary HTTP requests and does not evade anti-bot protections, DRM, ad systems, or access controls. The watchlist uses local SQLite storage; for persistence across Railway redeploys, attach a persistent volume and set `DB_FILE` to a path on that volume.
+## Built-in providers
+`animekai`, `anikoto`, `hianime`, and `anivault`. HTML layouts and provider availability can change. AniList is a metadata source, not a video host, and cannot provide playable episode URLs. The service returns empty results or a clear error when links are not found; it does not invent episodes or mirror servers.
+
+Provider URL allowlisting is enabled to reduce server-side request forgery risk. Use only sources you are authorized to access. This service does not evade access controls, DRM, or anti-bot protections.
