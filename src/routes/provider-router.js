@@ -20,11 +20,20 @@ export function createProviderRouter(providers) {
       return res.status(400).json({ error: "invalid_query", message: "Search query must be 160 characters or fewer." });
     }
     if (!provider.isConfigured()) {
-      return res.status(503).json({
-        error: "provider_not_configured",
-        provider: provider.id,
-        message: "Configure a verified upstream API base URL and search path before using this route."
-      });
+      // Keep provider routes useful without inventing or scraping a stream source.
+      // Return metadata from the catalog and explicitly mark that no provider stream was queried.
+      try {
+        const upstream = await fetch("https://graphql.anilist.co", {
+          method: "POST", headers: { "content-type": "application/json", "accept": "application/json" },
+          body: JSON.stringify({ query: "query ($search: String) { Page(page: 1, perPage: 20) { media(search: $search, type: ANIME, sort: SEARCH_MATCH) { id title { romaji english native } description(asHtml: false) episodes status format seasonYear coverImage { large } siteUrl } } }", variables: { search: q } }),
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!upstream.ok) return res.status(502).json({ error: "catalog_upstream_error", provider: provider.id, message: "Metadata service is temporarily unavailable." });
+        const payload = await upstream.json();
+        return res.json({ provider: provider.id, query: q, configured: false, source: "AniList metadata fallback", streamsAvailable: false, data: payload?.data?.Page?.media ?? [], note: "This fallback searches anime metadata only. Configure a legitimate provider API for stream results." });
+      } catch {
+        return res.status(502).json({ error: "catalog_unavailable", provider: provider.id, message: "Could not reach metadata service. Try again shortly." });
+      }
     }
 
     try {
