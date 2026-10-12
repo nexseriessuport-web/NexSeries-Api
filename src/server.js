@@ -18,6 +18,13 @@ app.get("/", async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get("/watch", async (_req, res, next) => {
+  try {
+    const html = await readFile(new URL("./public/watch.html", import.meta.url), "utf8");
+    res.type("html").send(html);
+  } catch (error) { next(error); }
+});
+
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, service: "nexseries-api", timestamp: new Date().toISOString() });
 });
