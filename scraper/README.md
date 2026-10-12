@@ -1,6 +1,6 @@
 # Nex Series API Scraper
 
-Fresh FastAPI service with a built-in mobile-friendly dashboard, Swagger API explorer, provider search, episode parsing, metadata lists, and a SQLite watchlist.
+FastAPI service with a mobile-friendly dashboard, Swagger API explorer, provider search, best-effort episode parsing, metadata lists, an API capability inventory, and a SQLite watchlist.
 
 ## Run locally
 ```bash
@@ -8,6 +8,17 @@ python -m pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 Open `/` for the dashboard, `/docs` for interactive Swagger docs, and `/api/health` for health status.
+
+## Tests
+Run contract and regression tests from the `scraper` directory:
+```bash
+python -m pip install -r requirements.txt
+python -m unittest -v test_app.py
+```
+These tests cover local API contracts and safety behavior. They do not prove that third-party provider pages are currently reachable or playable.
+
+## API audit
+`GET /api/audit` lists API routes and documented provider capabilities. It is an inventory, not a live provider uptime test. Provider pages can change independently of this service.
 
 ## Railway
 - Root directory: `/scraper`
@@ -18,7 +29,7 @@ Open `/` for the dashboard, `/docs` for interactive Swagger docs, and `/api/heal
 ## Routes
 - `GET /` dashboard
 - `GET /docs` interactive API explorer
-- `GET /api/health`, `GET /api/providers`
+- `GET /api/health`, `GET /api/providers`, `GET /api/audit`
 - `GET /api/search?platform=animekai&q=Naruto`
 - `GET /api/upcoming`, `/api/top-airing`, `/api/most-popular`, `/api/movies`
 - `GET /api/schedule`, `/api/genres`, `/api/genre/{name}`
