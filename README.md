@@ -1,17 +1,24 @@
 # NexSeries API Workspace
 
-A small Node.js API scaffold with health checks, provider discovery, configurable provider adapters, and regression tests.
+Node.js/Express anime metadata and provider-adapter workspace with health checks and regression tests.
 
 ## Routes
 
-- `GET /` — service summary
+- `GET /` — anime search/watch frontend
+- `GET /watch` — anime search/watch frontend
+- `GET /dashboard`, `/api-dashboard`, `/control-room` — API dashboard
 - `GET /health` — health check
 - `GET /api` — route overview
 - `GET /api/providers` — adapter configuration status
-- `GET /api/anikoto/search?q=title` — search adapter
-- `GET /api/animekai/search?q=title` — search adapter
+- `GET /api/catalog/search?q=title` — AniList anime metadata search
+- `GET /api/anikoto/search?q=title` — configured adapter search, or explicitly marked metadata fallback
+- `GET /api/animekai/search?q=title` — configured adapter search, or explicitly marked metadata fallback
 
-The provider search routes intentionally return `503 provider_not_configured` until a verified upstream API base URL and path are configured. This avoids inventing undocumented endpoints or claiming an integration works when it has not been tested.
+## Provider behavior (important)
+
+The Anikoto and AnimeKai adapters are **not automatically connected to real provider APIs**. Each requires a verified, authorized API base URL and search path in Railway environment variables. When an adapter is not configured, its search route falls back to AniList metadata and returns `configured: false` and `streamsAvailable: false`. Those results are anime catalog entries, not provider episode streams or playable video URLs.
+
+Do not treat HTTP 200 as proof that a provider integration or video playback works. Validate response fields and test a real, authorized stream URL in a browser before claiming playback is functional.
 
 ## Run locally
 
@@ -19,35 +26,32 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm install
-cp .env.example .env
 npm run dev
 ```
 
 Open `http://localhost:3000/health`.
 
-## Test
+## Tests
 
 ```bash
 npm test
 ```
 
+Tests should stub upstream network calls so they remain repeatable and do not depend on a third-party service being available.
+
 ## Configure a provider
 
-For each provider, set its API base URL and a documented search path, for example:
+Only use a documented, authorized endpoint:
 
 ```env
 ANIKOTO_API_BASE=https://documented-api-host.example
 ANIKOTO_SEARCH_PATH=/documented/search
 ```
 
-Replace the example with a real, authorized endpoint and path from provider documentation. The adapter adds the search term as a `q` query parameter. If the provider uses another parameter name or a different response contract, adapt `src/providers/base-provider.js` accordingly.
+The adapter currently adds the query as a `q` parameter and expects JSON. If the official API documents another query parameter or response schema, update the adapter and add tests for that schema. Do not commit credentials, cookies, private tokens, or `.env` files.
 
-## Deploy to Railway
+## Deployment
 
-1. Push this folder to a GitHub repository you control.
-2. Create a Railway project and deploy that repository.
-3. Set any verified provider environment variables in Railway.
-4. Confirm the service health check passes at `/health`.
+Railway deploys from the configured GitHub branch. Check the deployment status, runtime logs, and live HTTP responses after each change. The health check only confirms that the server is running; it does not verify upstream provider connectivity or video playback.
 
-Do not put credentials, cookies, private tokens, or `.env` files into Git.
-This scaffold does not bypass ads, sandbox controls, access restrictions, or anti-bot systems.
+This project does not bypass DRM, ads, sandbox controls, access restrictions, or anti-bot systems.
