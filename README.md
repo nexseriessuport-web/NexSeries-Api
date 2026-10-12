@@ -1,57 +1,59 @@
 # NexSeries API Workspace
 
-Node.js/Express anime metadata and provider-adapter workspace with health checks and regression tests.
+Node.js/Express anime metadata and configurable provider-adapter workspace.
 
 ## Routes
 
-- `GET /` — anime search/watch frontend
-- `GET /watch` — anime search/watch frontend
+- `GET /` and `GET /watch` — search/watch frontend
 - `GET /dashboard`, `/api-dashboard`, `/control-room` — API dashboard
-- `GET /health` — health check
+- `GET /health` — server health
 - `GET /api` — route overview
-- `GET /api/providers` — adapter configuration status
-- `GET /api/catalog/search?q=title` — AniList anime metadata search
-- `GET /api/anikoto/search?q=title` — configured adapter search, or explicitly marked metadata fallback
-- `GET /api/animekai/search?q=title` — configured adapter search, or explicitly marked metadata fallback
+- `GET /api/providers` — provider configuration and supported operations
+- `GET /api/catalog/search?q=title` — AniList metadata search only
+- `GET /api/:provider/search?q=title` — provider search (metadata fallback when unconfigured)
+- `GET /api/:provider/episodes?animeId=id` — provider episode list
+- `GET /api/:provider/stream?episodeId=id` — provider playback-source lookup
 
-## Provider behavior (important)
+## Important limitations
 
-The Anikoto and AnimeKai adapters are **not automatically connected to real provider APIs**. Each requires a verified, authorized API base URL and search path in Railway environment variables. When an adapter is not configured, its search route falls back to AniList metadata and returns `configured: false` and `streamsAvailable: false`. Those results are anime catalog entries, not provider episode streams or playable video URLs.
+AniList supplies anime metadata and episode counts, not episode-by-episode records or streaming video URLs. The frontend no longer fabricates episode options from an episode count. Episode lists and playback are shown only when configured provider operations return real data.
 
-Do not treat HTTP 200 as proof that a provider integration or video playback works. Validate response fields and test a real, authorized stream URL in a browser before claiming playback is functional.
+Anikoto and AnimeKai are not automatically connected to a verified upstream API in this repository. HTTP 200 from search does not prove that episode lookup or playback works. Use only documented, authorized provider endpoints and test an actual browser-compatible media URL before claiming playback works.
 
-## Run locally
+## Configure documented provider endpoints
+
+Set these in the hosting provider's environment settings (do not commit credentials or cookies):
+
+```env
+ANIKOTO_API_BASE=https://documented-api-host.example
+ANIKOTO_SEARCH_PATH=/search
+ANIKOTO_EPISODES_PATH=/anime/{animeId}/episodes
+ANIKOTO_STREAM_PATH=/episode/{episodeId}/stream
+
+ANIMEKAI_API_BASE=https://documented-api-host.example
+ANIMEKAI_SEARCH_PATH=/search
+ANIMEKAI_EPISODES_PATH=/anime/{animeId}/episodes
+ANIMEKAI_STREAM_PATH=/episode/{episodeId}/stream
+```
+
+These paths are examples of the adapter's configurable shape, not real provider endpoints. Replace them only with paths from a legitimate API's documentation. Search automatically receives a `q` query parameter. Episode and stream path templates can use `{animeId}` and `{episodeId}`; IDs are URL-encoded before insertion. Each upstream operation must return JSON. The stream response should contain a direct HTTP(S) media URL under a common field such as `url`, `file`, `src`, or `streamUrl`.
+
+Provider search, episode list, and stream lookup are independent settings. `/api/providers` reports which operations are configured. An unconfigured operation returns HTTP 503 with `operation_not_configured` instead of fabricating results.
+
+## Run and test
 
 Requires Node.js 20 or newer.
 
 ```bash
 npm install
-npm run dev
-```
-
-Open `http://localhost:3000/health`.
-
-## Tests
-
-```bash
 npm test
+npm start
 ```
 
-Tests should stub upstream network calls so they remain repeatable and do not depend on a third-party service being available.
+Tests should stub upstream network calls so they do not depend on third-party availability.
 
-## Configure a provider
+## Deployment verification
 
-Only use a documented, authorized endpoint:
+After deploying, check `/health`, `/api/providers`, provider search, episode lookup, and stream lookup. A healthy server is not proof of playback. Test with a real authorized media URL in a browser.
 
-```env
-ANIKOTO_API_BASE=https://documented-api-host.example
-ANIKOTO_SEARCH_PATH=/documented/search
-```
-
-The adapter currently adds the query as a `q` parameter and expects JSON. If the official API documents another query parameter or response schema, update the adapter and add tests for that schema. Do not commit credentials, cookies, private tokens, or `.env` files.
-
-## Deployment
-
-Railway deploys from the configured GitHub branch. Check the deployment status, runtime logs, and live HTTP responses after each change. The health check only confirms that the server is running; it does not verify upstream provider connectivity or video playback.
-
-This project does not bypass DRM, ads, sandbox controls, access restrictions, or anti-bot systems.
+This project does not bypass DRM, ads, access controls, or anti-bot protections.
