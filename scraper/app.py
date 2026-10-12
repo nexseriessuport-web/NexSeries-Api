@@ -13,7 +13,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 APP_TITLE = "Nex Series API Scraper"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 DB_FILE = os.getenv("DB_FILE", "/data/nex_series.db" if os.path.isdir("/data") else "nex_series.db")
 app = FastAPI(title=APP_TITLE, version=VERSION, description="Provider-based anime metadata and episode scraper API")
 
@@ -32,9 +32,9 @@ DASHBOARD = r"""<!doctype html>
 *{box-sizing:border-box}body{margin:0;padding:20px;font:14px system-ui;background:var(--bg);color:#f4f4f5}header{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}h1{font-size:22px;color:#c084fc;margin:0}.tabs,.controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}button,select,input{background:#1b1b22;border:1px solid var(--line);color:#fff;border-radius:8px;padding:10px}button{cursor:pointer}button.primary{background:var(--accent);border-color:var(--accent)}main{display:grid;grid-template-columns:minmax(280px,380px) minmax(0,1fr);gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:180px;overflow:auto}.results{max-height:65vh}.item{padding:11px;margin:7px 0;background:#1b1b22;border:1px solid transparent;border-radius:8px;cursor:pointer}.item:hover{border-color:var(--accent)}.muted{color:var(--muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#86efac}.hidden{display:none}a{color:#c084fc}@media(max-width:760px){main{grid-template-columns:1fr}body{padding:12px}.results{max-height:none}}
 </style></head><body><header><h1>⚡ Nex Series API Scraper</h1><span class="muted" id="health">Checking API…</span></header>
 <div class="tabs"><button onclick="tab('search')">Search / Episodes</button><button onclick="quick('/api/upcoming')">Upcoming</button><button onclick="quick('/api/top-airing')">Top Airing</button><button onclick="quick('/api/most-popular')">Popular</button><button onclick="tab('watchlist');watchlist()">Watchlist</button><button onclick="tab('tester')">API Playground</button><a href="/docs" target="_blank"><button>Swagger Docs ↗</button></a></div>
-<section id="search"><div class="controls"><select id="provider"><option>animekai</option><option>anikoto</option><option>hianime</option><option>anivault</option></select><input id="q" placeholder="Search anime title" style="flex:1;min-width:150px"><button class="primary" onclick="search()">Search</button></div><main><div class="panel results"><h3 id="leftTitle">Search results</h3><div id="results" class="muted">Search a title to begin.</div><hr><h3>Episodes</h3><div id="episodes" class="muted">Choose a result first.</div></div><div class="panel"><h3>Selected item / API response</h3><pre id="output">Ready.</pre><div id="player"></div></div></main></section>
+<section id="search"><div class="controls"><select id="provider"><option>animekai</option><option>anikoto</option><option>hianime</option><option value="anivault">anivault (metadata only)</option></select><input id="q" placeholder="Search anime title" style="flex:1;min-width:150px"><button class="primary" onclick="search()">Search</button></div><main><div class="panel results"><h3 id="leftTitle">Search results</h3><div id="results" class="muted">Search a title to begin.</div><hr><h3>Episodes</h3><div id="episodes" class="muted">Choose a result first.</div></div><div class="panel"><h3>Selected item / API response</h3><pre id="output">Ready.</pre><div id="player"></div></div></main></section>
 <section id="watchlistView" class="hidden panel"><h2>Watchlist</h2><div id="watchitems"></div></section>
-<section id="tester" class="hidden panel"><h2>API Playground</h2><div class="controls"><select id="endpoint"><option>/api/health</option><option>/api/providers</option><option>/api/search?platform=animekai&amp;q=Naruto</option><option>/api/upcoming</option><option>/api/top-airing</option><option>/api/most-popular</option><option>/api/movies</option><option>/api/schedule</option><option>/api/genres</option><option>/api/genre/action</option><option>/api/watchlist</option></select><button class="primary" onclick="testApi()">Send request</button></div><pre id="testout">Select a route.</pre></section>
+<section id="tester" class="hidden panel"><h2>API Playground</h2><div class="controls"><select id="endpoint"><option>/api/health</option><option>/api/audit</option><option>/api/providers</option><option>/api/search?platform=animekai&amp;q=Naruto</option><option>/api/upcoming</option><option>/api/top-airing</option><option>/api/most-popular</option><option>/api/movies</option><option>/api/schedule</option><option>/api/genres</option><option>/api/genre/action</option><option>/api/watchlist</option></select><button class="primary" onclick="testApi()">Send request</button></div><pre id="testout">Select a route.</pre></section>
 <script>
 let currentPlatform='animekai';
 async function request(path,opts){const r=await fetch(path,opts);let d;try{d=await r.json()}catch{d={detail:await r.text()}}if(!r.ok)throw Error(d.detail||('HTTP '+r.status));return d}
@@ -95,8 +95,13 @@ def cf_get(url: str, params: dict[str, str] | None = None, platform: str | None 
             return response
     except HTTPException:
         raise
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail=f"{platform or 'Provider'} request timed out after 15 seconds.") from exc
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        raise HTTPException(status_code=502, detail=f"{platform or 'Provider'} returned upstream HTTP {status}. The provider may be unavailable or blocking automated requests.") from exc
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"Provider request failed: {type(exc).__name__}") from exc
+        raise HTTPException(status_code=502, detail=f"{platform or 'Provider'} connection failed ({type(exc).__name__}).") from exc
 
 def anilist(query: str, variables: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     gql = {"query": query, "variables": variables or {}}
@@ -124,7 +129,34 @@ def health() -> dict[str, str]:
 
 @app.get("/api/providers")
 def providers() -> dict[str, Any]:
-    return {"providers":[{"id":k,"base_url":v["base"],"mode":"AniList metadata" if k=="anivault" else "HTML search and episode parsing"} for k,v in PROVIDERS.items()]}
+    return {"providers":[{"id":k,"base_url":v["base"],"mode":"metadata only; no episode or stream URLs" if k=="anivault" else "HTML search and best-effort episode parsing"} for k,v in PROVIDERS.items()]}
+
+@app.get("/api/audit")
+def audit() -> dict[str, Any]:
+    """Static API capability inventory; does not pretend that external providers were probed."""
+    routes = []
+    for route in app.routes:
+        methods = sorted(m for m in (getattr(route, "methods", None) or set()) if m not in {"HEAD", "OPTIONS"})
+        if methods and getattr(route, "path", "").startswith("/api/"):
+            routes.append({"path": route.path, "methods": methods})
+    return {
+        "version": VERSION,
+        "status": "inventory_only",
+        "route_count": len(routes),
+        "routes": routes,
+        "provider_capabilities": {
+            "animekai": {"metadata_search": True, "episode_parsing": "best_effort_html", "stream_extraction": "limited_html_only"},
+            "anikoto": {"metadata_search": True, "episode_parsing": "best_effort_html", "stream_extraction": "limited_html_only"},
+            "hianime": {"metadata_search": True, "episode_parsing": "best_effort_html", "stream_extraction": "limited_html_only"},
+            "anivault": {"metadata_search": True, "episode_parsing": False, "stream_extraction": False},
+        },
+        "limitations": [
+            "Provider availability is not tested by this inventory endpoint.",
+            "HTML selectors can break when providers change their pages.",
+            "AniList is a metadata source and does not provide playable episode URLs.",
+            "Stream extraction only finds media or iframe URLs exposed in fetched HTML.",
+        ],
+    }
 
 @app.get("/api/search")
 def search(platform: str = Query(...), q: str = Query(..., min_length=1, max_length=120)) -> dict[str, Any]:
@@ -259,8 +291,26 @@ def episodes(platform: str = Query(...), url: str = Query(...)) -> dict[str, Any
 
 @app.get("/api/servers")
 def servers(platform: str = Query(...), url: str = Query(...)) -> dict[str, Any]:
-    safe_provider_url(url,platform.lower())
-    return {"platform":platform,"servers":[{"name":"Provider page","url":url}],"note":"Only servers actually present on the supplied page are reported; no fake mirror servers are generated."}
+    platform = platform.lower()
+    if platform not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unknown provider.")
+    safe_provider_url(url, platform)
+    if platform == "anivault":
+        return {"platform": platform, "servers": [], "note": "AniList is metadata-only and has no video servers."}
+    response = cf_get(url, platform=platform)
+    soup = BeautifulSoup(response.text, "html.parser")
+    servers_found: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for node in soup.select("iframe[src], [data-src], [data-video], [data-embed]"):
+        raw = node.get("src") or node.get("data-src") or node.get("data-video") or node.get("data-embed") or ""
+        if not raw:
+            continue
+        candidate = urljoin(url, raw)
+        parsed = urlparse(candidate)
+        if parsed.scheme == "https" and parsed.hostname == urlparse(PROVIDERS[platform]["base"]).hostname and candidate not in seen:
+            seen.add(candidate)
+            servers_found.append({"name": "Embedded player", "url": candidate})
+    return {"platform": platform, "servers": servers_found, "note": None if servers_found else "No same-provider embed URLs were exposed in the fetched HTML. Dynamic player scripts and third-party embeds are not extracted."}
 
 @app.get("/api/stream")
 def stream(platform: str = Query(...), url: str = Query(...)) -> dict[str, Any]:
