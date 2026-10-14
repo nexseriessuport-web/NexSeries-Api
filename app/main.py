@@ -10,10 +10,11 @@ Startup order:
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.core.config import get_settings
 from app.core.http_client import close_client
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Anime API Aggregator",
     description=(
-        "Multi-provider anime metadata and streaming source aggregator. "
+        "Multi-provider anime metadata API with a same-origin browser catalog and API explorer. "
         "Verified providers: AniList, Jikan. "
         "Streaming providers (Anikito, Miruro, AniVault, YumeZone) are UNTESTED "
         "and disabled by default pending contract-test verification."
@@ -66,12 +67,10 @@ app.include_router(anime_router)
 # ── Root ──────────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def root():
-    return {
-        "service": "anime-aggregator",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/api/v1/health",
-    }
+    # Keep the browser client same-origin with the API so Railway needs no
+    # separate frontend service or cross-origin configuration.
+    index = Path(__file__).parent / "web" / "index.html"
+    return FileResponse(index, media_type="text/html")
 
 
 # ── Global error handler ──────────────────────────────────────────────────

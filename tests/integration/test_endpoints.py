@@ -20,12 +20,12 @@ from tests.conftest import (
 
 # ── Root ──────────────────────────────────────────────────────────────────
 
-def test_root(client: TestClient):
+def test_root_serves_web_app(client: TestClient):
     resp = client.get("/")
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["service"] == "anime-aggregator"
-    assert "docs" in body
+    assert "text/html" in resp.headers["content-type"]
+    assert "NEXSERIES" in resp.text
+    assert "API explorer" in resp.text
 
 
 # ── Provider list ─────────────────────────────────────────────────────────

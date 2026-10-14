@@ -1,6 +1,6 @@
-# Anime API Aggregator
+# NexSeries Anime API Studio
 
-Multi-provider anime metadata and streaming source aggregator built with FastAPI.
+Multi-provider anime metadata API with a browser catalog and API route tester, built with FastAPI.
 
 ---
 
@@ -16,7 +16,9 @@ pip install -r requirements.txt
 # 3. Run
 uvicorn app.main:app --reload
 
-# Docs available at:
+# Browser catalog + API explorer:
+#   http://localhost:8000/
+# API docs available at:
 #   http://localhost:8000/docs   (Swagger UI)
 #   http://localhost:8000/redoc  (ReDoc)
 ```
@@ -55,6 +57,8 @@ anime-aggregator/
 │   │   ├── jikan.py             # Jikan (MAL) REST — VERIFIED
 │   │   ├── streaming_stub.py    # Anikito/Miruro/AniVault/YumeZone — UNTESTED
 │   │   └── registry.py          # Provider registry and fallback chain
+│   ├── web/
+│   │   └── index.html            # Same-origin catalog, episode metadata, API tester
 │   ├── routers/
 │   │   └── anime.py             # All REST endpoints
 │   └── schemas/
