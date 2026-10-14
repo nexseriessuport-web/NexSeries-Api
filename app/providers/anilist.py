@@ -44,7 +44,7 @@ _MEDIA_FRAGMENT = """
 fragment MediaFields on Media {
   id
   idMal
-  title { romaji english native synonyms }
+  title { romaji english native }
   coverImage { large medium color }
   bannerImage
   description(asHtml: false)
